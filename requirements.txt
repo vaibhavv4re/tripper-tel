@@ -1,5 +1,5 @@
-python-telegram-bot
-transformers>=4.0.0
+python-telegram-bot>=20.0
+transformers
 requests
 schedule
 supabase
