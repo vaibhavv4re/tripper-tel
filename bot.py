@@ -1,5 +1,5 @@
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, filters, CallbackContext
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
 from database import save_preferences, get_preferences, log_interaction
 from transformers import pipeline
 import requests
@@ -9,13 +9,19 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Initialize the LLM pipeline
-generator = pipeline('text-generation', model='distilgpt2')
-
 # API keys
 MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
-#WEATHER_API_KEY = os.getenv("OPENWEATHERMAP_API_KEY")
+WEATHER_API_KEY = os.getenv("OPENWEATHERMAP_API_KEY")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+
+# Function to generate responses using DistilGPT2
+def generate_response(query: str) -> str:
+    # Load the model only when needed
+    generator = pipeline('text-generation', model='distilgpt2')
+    response = generator(query, max_length=50)[0]['generated_text']
+    # Unload the model (optional, but helps free up memory)
+    del generator
+    return response
 
 # Fetch route from Google Maps
 def get_route(origin: str, destination: str) -> dict:
@@ -29,7 +35,7 @@ def get_pois(location: str, preference: str) -> dict:
 
 
 # Handle user messages
-def handle_message(update: Update, context: CallbackContext):
+async def handle_message(update: Update, context: CallbackContext):
     user_id = str(update.message.from_user.id)
     user_message = update.message.text
 
@@ -50,16 +56,15 @@ def handle_message(update: Update, context: CallbackContext):
 
         # Fetch POIs and weather alerts
         pois = []
-        #weather_alerts = []
+        weather_alerts = []
         for step in steps:
             lat = step['end_location']['lat']
             lon = step['end_location']['lng']
             pois.append(get_pois(f"{lat},{lon}", preferences))
-            #weather_alerts.append(get_weather(lat, lon)['weather'][0]['description'])
 
         # Generate personalized suggestions
         prompt = f"Suggest stopovers and activities for a trip from {origin} to {destination} based on {preferences}."
-        suggestions = generator(prompt, max_length=50)[0]['generated_text']
+        suggestions = generate_response(prompt)
 
         # Compile response
         response = (
@@ -68,23 +73,24 @@ def handle_message(update: Update, context: CallbackContext):
             f"**Personalized Suggestions**: {suggestions}"
         )
 
-        update.message.reply_text(response)
+        await update.message.reply_text(response)
         log_interaction(user_id, user_message, response)
 
 # Start command
-def start(update: Update, context: CallbackContext):
-    update.message.reply_text("Welcome! I'm your travel assistant. How can I help you today?")
+async def start(update: Update, context: CallbackContext):
+    await update.message.reply_text("Welcome! I'm your travel assistant. How can I help you today?")
 
 # Main function
 def main():
-    updater = Updater(TELEGRAM_TOKEN, use_context=True)
-    dp = updater.dispatcher
+    # Initialize the Application
+    application = Application.builder().token(TELEGRAM_TOKEN).build()
 
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+    # Add handlers
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    updater.start_polling()
-    updater.idle()
+    # Start the bot
+    application.run_polling()
 
 if __name__ == "__main__":
     main()
