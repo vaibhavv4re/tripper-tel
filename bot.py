@@ -59,7 +59,7 @@ def handle_message(update: Update, context: CallbackContext):
 
         # Generate personalized suggestions
         prompt = f"Suggest stopovers and activities for a trip from {origin} to {destination} based on {preferences}."
-        suggestions = generator(prompt, max_length=100)[0]['generated_text']
+        suggestions = generator(prompt, max_length=50)[0]['generated_text']
 
         # Compile response
         response = (
