@@ -14,7 +14,7 @@ generator = pipeline('text-generation', model='gpt2')
 
 # API keys
 MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
-WEATHER_API_KEY = os.getenv("OPENWEATHERMAP_API_KEY")
+#WEATHER_API_KEY = os.getenv("OPENWEATHERMAP_API_KEY")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 # Fetch route from Google Maps
@@ -27,10 +27,6 @@ def get_pois(location: str, preference: str) -> dict:
     url = f"https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={location}&radius=5000&type={preference}&key={MAPS_API_KEY}"
     return requests.get(url).json()
 
-# Fetch weather data
-def get_weather(lat: float, lon: float) -> dict:
-    url = f"http://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={WEATHER_API_KEY}"
-    return requests.get(url).json()
 
 # Handle user messages
 def handle_message(update: Update, context: CallbackContext):
@@ -54,12 +50,12 @@ def handle_message(update: Update, context: CallbackContext):
 
         # Fetch POIs and weather alerts
         pois = []
-        weather_alerts = []
+        #weather_alerts = []
         for step in steps:
             lat = step['end_location']['lat']
             lon = step['end_location']['lng']
             pois.append(get_pois(f"{lat},{lon}", preferences))
-            weather_alerts.append(get_weather(lat, lon)['weather'][0]['description'])
+            #weather_alerts.append(get_weather(lat, lon)['weather'][0]['description'])
 
         # Generate personalized suggestions
         prompt = f"Suggest stopovers and activities for a trip from {origin} to {destination} based on {preferences}."
@@ -69,7 +65,6 @@ def handle_message(update: Update, context: CallbackContext):
         response = (
             f"**Route Summary**: {route_summary}\n\n"
             f"**POIs along the way**: {pois}\n\n"
-            f"**Weather Alerts**: {', '.join(weather_alerts)}\n\n"
             f"**Personalized Suggestions**: {suggestions}"
         )
 
