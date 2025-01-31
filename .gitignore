@@ -1,0 +1,16 @@
+# Ignore environment variables
+.env
+
+# Ignore Python virtual environment
+venv/
+env/
+
+# Ignore compiled Python files
+__pycache__/
+*.pyc
+
+# Ignore Supabase local files (if any)
+supabase/
+
+# Ignore LLM model files (if any)
+models/
