@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Initialize the LLM pipeline
-generator = pipeline('text-generation', model='gpt2')
+generator = pipeline('text-generation', model='distilgpt2')
 
 # API keys
 MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
