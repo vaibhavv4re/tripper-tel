@@ -1,27 +1,34 @@
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
-from database import save_preferences, get_preferences, log_interaction
+from telegram.ext import Updater, CommandHandler, MessageHandler, filters, CallbackContext
 from transformers import pipeline
 import requests
 import os
 from dotenv import load_dotenv
+from flask import Flask
+from threading import Thread
 
 # Load environment variables
 load_dotenv()
 
+# Initialize Flask app
+app = Flask(__name__)
+
+# Health check endpoint
+@app.route('/')
+def home():
+    return "Bot is running!", 200
+
+# Run the Flask server in a thread
+def run_flask():
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+
+# Initialize the LLM pipeline
+generator = pipeline('text-generation', model='distilgpt2')
+
 # API keys
 MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
-WEATHER_API_KEY = os.getenv("OPENWEATHERMAP_API_KEY")
+#WEATHER_API_KEY = os.getenv("OPENWEATHERMAP_API_KEY")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-
-# Function to generate responses using DistilGPT2
-def generate_response(query: str) -> str:
-    # Load the model only when needed
-    generator = pipeline('text-generation', model='distilgpt2')
-    response = generator(query, max_length=50)[0]['generated_text']
-    # Unload the model (optional, but helps free up memory)
-    del generator
-    return response
 
 # Fetch route from Google Maps
 def get_route(origin: str, destination: str) -> dict:
@@ -35,7 +42,7 @@ def get_pois(location: str, preference: str) -> dict:
 
 
 # Handle user messages
-async def handle_message(update: Update, context: CallbackContext):
+def handle_message(update: Update, context: CallbackContext):
     user_id = str(update.message.from_user.id)
     user_message = update.message.text
 
@@ -64,7 +71,7 @@ async def handle_message(update: Update, context: CallbackContext):
 
         # Generate personalized suggestions
         prompt = f"Suggest stopovers and activities for a trip from {origin} to {destination} based on {preferences}."
-        suggestions = generate_response(prompt)
+        suggestions = generator(prompt, max_length=50)[0]['generated_text']
 
         # Compile response
         response = (
@@ -73,24 +80,27 @@ async def handle_message(update: Update, context: CallbackContext):
             f"**Personalized Suggestions**: {suggestions}"
         )
 
-        await update.message.reply_text(response)
+        update.message.reply_text(response)
         log_interaction(user_id, user_message, response)
 
 # Start command
-async def start(update: Update, context: CallbackContext):
-    await update.message.reply_text("Welcome! I'm your travel assistant. How can I help you today?")
+def start(update: Update, context: CallbackContext):
+    update.message.reply_text("Welcome! I'm your travel assistant. How can I help you today?")
 
 # Main function
 def main():
-    # Initialize the Application
-    application = Application.builder().token(TELEGRAM_TOKEN).build()
+    # Start Flask server in a separate thread
+    Thread(target=run_flask).start()
 
-    # Add handlers
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    # Start the Telegram bot
+    updater = Updater(TELEGRAM_TOKEN, use_context=True)
+    dp = updater.dispatcher
 
-    # Start the bot
-    application.run_polling()
+    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+
+    updater.start_polling()
+    updater.idle()
 
 if __name__ == "__main__":
     main()
